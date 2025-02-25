@@ -2,43 +2,164 @@
 <html>
 <head>
     <title>Transcript Processor</title>
+    <!-- JSON Viewer Styles -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@json-editor/json-editor@latest/dist/css/jsoneditor.min.css">
     <style>
         body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 900px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        
+        h1 {
+            color: #2c3e50;
         }
         
         .upload-area {
-            border: 2px dashed #ccc;
-            border-radius: 5px;
-            padding: 25px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 30px;
             text-align: center;
             margin: 20px 0;
             cursor: pointer;
+            background-color: white;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
         
         .upload-area.highlight {
             border-color: #2196F3;
-            background-color: #f7f9fa;
+            background-color: #f0f7ff;
+        }
+        
+        .upload-area p {
+            color: #666;
+            margin: 0;
+        }
+        
+        #results-container {
+            margin-top: 20px;
+            display: none;
+            background-color: white;
+            border-radius: 8px;
+            padding: 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        #results-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        #results-header h2 {
+            margin: 0;
+            font-size: 18px;
+            color: #2c3e50;
+        }
+        
+        #results-content {
+            padding: 0;
         }
         
         #results {
-            margin-top: 20px;
-            border: 1px solid #eee;
-            padding: 15px;
-            border-radius: 5px;
-            white-space: pre-wrap;
-            display: none;
+            margin: 0;
+            padding: 0;
         }
         
         .loading {
             display: none;
             text-align: center;
-            margin: 20px 0;
+            padding: 30px;
+            color: #666;
+        }
+        
+        .loading:after {
+            content: '';
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            margin-left: 10px;
+            border: 3px solid #ddd;
+            border-top-color: #2196F3;
+            border-radius: 50%;
+            animation: spin 1s ease-in-out infinite;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* JSON tree styling */
+        .json-container {
+            font-family: monospace;
+            font-size: 14px;
+            background-color: white;
+            overflow: auto;
+        }
+        
+        .json-container ul {
+            list-style-type: none;
+            padding-left: 20px;
+            margin: 0;
+        }
+        
+        .json-container > ul {
+            padding: 20px;
+        }
+        
+        .json-key {
+            color: #881391;
+            font-weight: 500;
+        }
+        
+        .json-string {
+            color: #1A7B30;
+        }
+        
+        .json-number {
+            color: #1A69C7;
+        }
+        
+        .json-boolean {
+            color: #994a00;
+        }
+        
+        .json-null {
+            color: #7D7D7D;
+        }
+        
+        /* Collapsible styling */
+        .json-toggle {
+            position: relative;
+            cursor: pointer;
+            padding-left: 20px;
+        }
+        
+        .json-toggle:before {
+            content: "+";
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 16px;
+            text-align: center;
+            color: #888;
+            font-weight: bold;
+        }
+        
+        .json-toggle.collapsed:before {
+            content: "-";
         }
     </style>
+    <!-- JSON Viewer Script -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
 </head>
 <body>
     <h1>Transcript Processor</h1>
@@ -50,17 +171,30 @@
     </div>
     
     <div id="loading" class="loading">
-        Processing transcript... This may take a few moments.
+        Processing transcript... Please wait, this may take a minute...
     </div>
     
-    <div id="results"></div>
+    <div id="results-container">
+        <div id="results-header">
+            <h2>Analysis Results</h2>
+            <button id="download-button" class="download-button">Download JSON</button>
+        </div>
+        <div id="results-content">
+            <div id="results" class="json-container"></div>
+        </div>
+    </div>
 
     <script>
         // Get DOM elements
         const uploadArea = document.getElementById('upload-area');
         const fileInput = document.getElementById('file-input');
         const loading = document.getElementById('loading');
+        const resultsContainer = document.getElementById('results-container');
         const results = document.getElementById('results');
+        const downloadButton = document.getElementById('download-button');
+        
+        // Global variable to store the results
+        let analysisResults = null;
         
         // Handle drag events for upload area
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -106,13 +240,26 @@
             }
         }, false);
         
+        // Download results
+        downloadButton.addEventListener('click', () => {
+            if (!analysisResults) return;
+            
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(analysisResults, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "transcript_analysis.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        });
+        
         // Process the selected files
         function handleFiles(files) {
             const file = files[0]; // Just take the first file
             
             // Show loading indicator
             loading.style.display = 'block';
-            results.style.display = 'none';
+            resultsContainer.style.display = 'none';
             
             // Create FormData to send the file
             const formData = new FormData();
@@ -125,21 +272,93 @@
             })
             .then(response => response.json())
             .then(data => {
+                // Store results globally
+                analysisResults = data;
+                
                 // Hide loading indicator
                 loading.style.display = 'none';
                 
                 // Display results
-                results.textContent = JSON.stringify(data, null, 2);
-                results.style.display = 'block';
+                renderJsonView(data, results);
+                resultsContainer.style.display = 'block';
             })
             .catch(error => {
                 // Hide loading indicator
                 loading.style.display = 'none';
                 
                 // Display error
-                results.textContent = 'Error: ' + error.message;
-                results.style.display = 'block';
+                results.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                resultsContainer.style.display = 'block';
             });
+        }
+        
+        // Function to render JSON as interactive tree
+        function renderJsonView(json, container) {
+            container.innerHTML = '';
+            container.appendChild(createTree(json));
+            
+            // Add click handlers for collapsible elements
+            const toggles = container.querySelectorAll('.json-toggle');
+            toggles.forEach(toggle => {
+                toggle.addEventListener('click', () => {
+                    toggle.classList.toggle('collapsed');
+                    const content = toggle.nextElementSibling;
+                    content.style.display = content.style.display === 'none' ? '' : 'none';
+                });
+                
+                // Start with all nodes expanded
+                toggle.classList.add('collapsed');
+            });
+        }
+        
+        // Function to create a tree view of JSON data
+        function createTree(obj) {
+            const ul = document.createElement('ul');
+            
+            for (let key in obj) {
+                const li = document.createElement('li');
+                const value = obj[key];
+                
+                if (typeof value === 'object' && value !== null) {
+                    // Create collapsible section for objects and arrays
+                    const keySpan = document.createElement('span');
+                    keySpan.className = 'json-key json-toggle';
+                    keySpan.textContent = `${key}: `;
+                    li.appendChild(keySpan);
+                    
+                    const childUl = createTree(value);
+                    li.appendChild(childUl);
+                } else {
+                    // For primitive values
+                    const keySpan = document.createElement('span');
+                    keySpan.className = 'json-key';
+                    keySpan.textContent = `${key}: `;
+                    
+                    const valueSpan = document.createElement('span');
+                    
+                    // Apply different classes based on data type
+                    if (typeof value === 'string') {
+                        valueSpan.className = 'json-string';
+                        valueSpan.textContent = `"${value}"`;
+                    } else if (typeof value === 'number') {
+                        valueSpan.className = 'json-number';
+                        valueSpan.textContent = value;
+                    } else if (typeof value === 'boolean') {
+                        valueSpan.className = 'json-boolean';
+                        valueSpan.textContent = value;
+                    } else if (value === null) {
+                        valueSpan.className = 'json-null';
+                        valueSpan.textContent = 'null';
+                    }
+                    
+                    li.appendChild(keySpan);
+                    li.appendChild(valueSpan);
+                }
+                
+                ul.appendChild(li);
+            }
+            
+            return ul;
         }
     </script>
 </body>
