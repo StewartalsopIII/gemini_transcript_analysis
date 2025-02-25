@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Transcript Processor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+            padding: 25px;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+        }
+        
+        .upload-area.highlight {
+            border-color: #2196F3;
+            background-color: #f7f9fa;
+        }
+        
+        #results {
+            margin-top: 20px;
+            border: 1px solid #eee;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            display: none;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Transcript Processor</h1>
+    <p>Drop your transcript file below to analyze it with Gemini AI</p>
+    
+    <div id="upload-area" class="upload-area">
+        <p>Drag & drop your transcript file here or <strong>click to browse</strong></p>
+        <input type="file" id="file-input" style="display: none">
+    </div>
+    
+    <div id="loading" class="loading">
+        Processing transcript... This may take a few moments.
+    </div>
+    
+    <div id="results"></div>
+
+    <script>
+        // Get DOM elements
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        
+        // Handle drag events for upload area
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        // Add highlight class when dragging over upload area
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => {
+                uploadArea.classList.add('highlight');
+            }, false);
+        });
+        
+        // Remove highlight class when dragging leaves upload area
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => {
+                uploadArea.classList.remove('highlight');
+            }, false);
+        });
+        
+        // Handle file drop
+        uploadArea.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length) {
+                handleFiles(files);
+            }
+        }, false);
+        
+        // Handle click on upload area
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        }, false);
+        
+        // Handle file selection via input
+        fileInput.addEventListener('change', (e) => {
+            if (fileInput.files.length) {
+                handleFiles(fileInput.files);
+            }
+        }, false);
+        
+        // Process the selected files
+        function handleFiles(files) {
+            const file = files[0]; // Just take the first file
+            
+            // Show loading indicator
+            loading.style.display = 'block';
+            results.style.display = 'none';
+            
+            // Create FormData to send the file
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // Send file to server
+            fetch('/process', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide loading indicator
+                loading.style.display = 'none';
+                
+                // Display results
+                results.textContent = JSON.stringify(data, null, 2);
+                results.style.display = 'block';
+            })
+            .catch(error => {
+                // Hide loading indicator
+                loading.style.display = 'none';
+                
+                // Display error
+                results.textContent = 'Error: ' + error.message;
+                results.style.display = 'block';
+            });
+        }
+    </script>
+</body>
+</html>
